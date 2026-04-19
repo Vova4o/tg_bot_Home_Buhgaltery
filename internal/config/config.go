@@ -31,7 +31,7 @@ func LoadConfig() (*Config, error) {
 			}
 		}
 	} else {
-		log.Println("WARNING: ALLOWED_USERS not set. Bot will accept messages from anyone.")
+		log.Println("WARNING: ALLOWED_USERS not set. Bot will reject messages from everyone.")
 	}
 
 	return &Config{

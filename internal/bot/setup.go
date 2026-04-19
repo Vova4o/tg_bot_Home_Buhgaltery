@@ -19,7 +19,7 @@ func AuthMiddleware(cfg *config.Config) telebot.MiddlewareFunc {
 	return func(next telebot.HandlerFunc) telebot.HandlerFunc {
 		return func(c telebot.Context) error {
 			userID := c.Sender().ID
-			if len(cfg.AllowedUsers) > 0 && !cfg.AllowedUsers[userID] {
+			if !cfg.AllowedUsers[userID] {
 				log.Printf("Unauthorized access attempt from user ID: %d", userID)
 				return nil // Drop the update silently
 			}

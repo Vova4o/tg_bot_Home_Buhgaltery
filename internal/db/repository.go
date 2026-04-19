@@ -97,8 +97,11 @@ func (r *Repository) SaveReceiptItem(item *models.ReceiptItem) error {
 }
 
 // Time helper to get bounds for Moscow timezone
-func getBounds(period string) (time.Time, time.Time) {
-	loc, _ := time.LoadLocation("Europe/Moscow")
+func getBounds(period string) (time.Time, time.Time, error) {
+	loc, err := time.LoadLocation("Europe/Moscow")
+	if err != nil {
+		return time.Time{}, time.Time{}, err
+	}
 	now := time.Now().In(loc)
 
 	var start time.Time
@@ -120,11 +123,14 @@ func getBounds(period string) (time.Time, time.Time) {
 		start = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
 		end = start.AddDate(0, 1, 0)
 	}
-	return start, end
+	return start, end, nil
 }
 
 func (r *Repository) GetExpensesReport(userID int, period string) ([]models.ExpenseReportRow, error) {
-	start, end := getBounds(period)
+	start, end, err := getBounds(period)
+	if err != nil {
+		return nil, err
+	}
 
 	query := `
 		SELECT c.name as category_name, SUM(e.amount) as total_amount
@@ -135,12 +141,15 @@ func (r *Repository) GetExpensesReport(userID int, period string) ([]models.Expe
 		ORDER BY total_amount DESC`
 
 	var rows []models.ExpenseReportRow
-	err := r.DB.Select(&rows, query, userID, start, end)
+	err = r.DB.Select(&rows, query, userID, start, end)
 	return rows, err
 }
 
 func (r *Repository) GetCategoryExpensesReport(userID int, categoryName string, period string) (float64, error) {
-	start, end := getBounds(period)
+	start, end, err := getBounds(period)
+	if err != nil {
+		return 0, err
+	}
 
 	query := `
 		SELECT COALESCE(SUM(e.amount), 0)
@@ -149,12 +158,15 @@ func (r *Repository) GetCategoryExpensesReport(userID int, categoryName string, 
 		WHERE e.user_id = $1 AND c.name = $2 AND e.expense_at >= $3 AND e.expense_at < $4`
 
 	var total float64
-	err := r.DB.Get(&total, query, userID, categoryName, start, end)
+	err = r.DB.Get(&total, query, userID, categoryName, start, end)
 	return total, err
 }
 
 func (r *Repository) GetUserExpensesReport(userID int, period string) (float64, error) {
-	start, end := getBounds(period)
+	start, end, err := getBounds(period)
+	if err != nil {
+		return 0, err
+	}
 
 	query := `
 		SELECT COALESCE(SUM(amount), 0)
@@ -162,7 +174,7 @@ func (r *Repository) GetUserExpensesReport(userID int, period string) (float64, 
 		WHERE user_id = $1 AND expense_at >= $2 AND expense_at < $3`
 
 	var total float64
-	err := r.DB.Get(&total, query, userID, start, end)
+	err = r.DB.Get(&total, query, userID, start, end)
 	return total, err
 }
 

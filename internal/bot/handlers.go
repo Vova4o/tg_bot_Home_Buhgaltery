@@ -131,8 +131,15 @@ func (h *BotHandler) HandlePhoto(c telebot.Context) error {
 	// Calculate categories
 	categoryTotals := make(map[string]float64)
 
-	for _, item := range parsedReceipt.Items {
-		catName := parser.DetectCategory(item.Name)
+	var receiptItemsToSave []*models.ReceiptItem
+	var expensesToSave []*models.Expense
+
+	// Caching categories to avoid DB queries inside the loop
+	categoryCache := make(map[string]int)
+	getCategoryID := func(catName string) int {
+		if id, exists := categoryCache[catName]; exists {
+			return id
+		}
 		cat, err := h.Repo.GetCategoryByName(catName)
 		var catID int
 		if err == nil {
@@ -143,6 +150,13 @@ func (h *BotHandler) HandlePhoto(c telebot.Context) error {
 				catID = cOther.ID
 			}
 		}
+		categoryCache[catName] = catID
+		return catID
+	}
+
+	for _, item := range parsedReceipt.Items {
+		catName := parser.DetectCategory(item.Name)
+		catID := getCategoryID(catName)
 
 		receiptItem := &models.ReceiptItem{
 			ReceiptID:  receipt.ID,
@@ -150,7 +164,7 @@ func (h *BotHandler) HandlePhoto(c telebot.Context) error {
 			Amount:     item.Amount,
 			CategoryID: catID,
 		}
-		h.Repo.SaveReceiptItem(receiptItem)
+		receiptItemsToSave = append(receiptItemsToSave, receiptItem)
 
 		categoryTotals[catName] += item.Amount
 
@@ -163,7 +177,21 @@ func (h *BotHandler) HandlePhoto(c telebot.Context) error {
 			Amount:      item.Amount,
 			ExpenseAt:   parsedReceipt.PurchaseAt,
 		}
-		h.Repo.AddExpense(exp)
+		expensesToSave = append(expensesToSave, exp)
+	}
+
+	if len(receiptItemsToSave) > 0 {
+		err = h.Repo.SaveReceiptItems(receiptItemsToSave)
+		if err != nil {
+			log.Println("Error bulk saving receipt items:", err)
+		}
+	}
+
+	if len(expensesToSave) > 0 {
+		err = h.Repo.AddExpenses(expensesToSave)
+		if err != nil {
+			log.Println("Error bulk saving expenses:", err)
+		}
 	}
 
 	// If no items were parsed but there is a total, put it to other

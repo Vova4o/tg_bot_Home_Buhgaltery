@@ -176,3 +176,63 @@ func (r *Repository) GetLastExpenses(userID int, limit int) ([]models.Expense, e
 	err := r.DB.Select(&expenses, query, userID, limit)
 	return expenses, err
 }
+
+func (r *Repository) SaveReceiptItems(items []*models.ReceiptItem) error {
+	if len(items) == 0 {
+		return nil
+	}
+	query := `
+		INSERT INTO receipt_items (receipt_id, item_name, amount, category_id)
+		VALUES (:receipt_id, :item_name, :amount, :category_id)
+		RETURNING id`
+
+	// NamedQuery works with slice of structs/pointers in sqlx >= 1.3.0
+	// But it might not return correctly multiple rows if we use it directly without iterating or using NamedQuery over slice.
+	// Actually sqlx.NamedQuery supports bulk insert if we pass a slice, but it returns multiple rows.
+
+	rows, err := r.DB.NamedQuery(query, items)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	i := 0
+	for rows.Next() {
+		if i < len(items) {
+			err = rows.StructScan(items[i])
+			if err != nil {
+				return err
+			}
+			i++
+		}
+	}
+	return rows.Err()
+}
+
+func (r *Repository) AddExpenses(expenses []*models.Expense) error {
+	if len(expenses) == 0 {
+		return nil
+	}
+	query := `
+		INSERT INTO expenses (user_id, category_id, source_type, description, amount, expense_at)
+		VALUES (:user_id, :category_id, :source_type, :description, :amount, :expense_at)
+		RETURNING id, created_at`
+
+	rows, err := r.DB.NamedQuery(query, expenses)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	i := 0
+	for rows.Next() {
+		if i < len(expenses) {
+			err = rows.StructScan(expenses[i])
+			if err != nil {
+				return err
+			}
+			i++
+		}
+	}
+	return rows.Err()
+}

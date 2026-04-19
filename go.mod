@@ -9,3 +9,5 @@ require (
 	github.com/otiai10/gosseract/v2 v2.4.1
 	gopkg.in/telebot.v4 v4.0.0-beta.7
 )
+
+require github.com/DATA-DOG/go-sqlmock v1.5.2 // indirect
